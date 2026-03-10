@@ -1,0 +1,222 @@
+'O') return cell;
+      return null;
+    });
+  } catch {
+    return createEmptyBoard();
+  }
+}
+</file>
+
+<file path="tictactoe/src/lib/database.ts">
+import Database from 'better-sqlite3';
+import path from 'path';
+
+export interface GameRow {
+  id: number;
+  board: string;
+  status: string;
+  current_player: string;
+  created_at: string;
+  updated_at: string;
+}
+
+const dbPath = process.env.DATABASE_PATH
+  ? path.resolve(process.cwd(), process.env.DATABASE_PATH)
+  : path.resolve(process.cwd(), 'database.sqlite');
+
+let db: Database.Database | null = null;
+
+export function getDatabase(): Database.Database {
+  if (db) return db;
+
+  db = new Database(dbPath);
+  db.pragma('journal_mode = WAL');
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS games (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      board TEXT NOT NULL DEFAULT '${JSON.stringify(Array(9).fill(null))}',
+      status TEXT NOT NULL DEFAULT 'in_progress',
+      current_player TEXT NOT NULL DEFAULT 'X',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  return db;
+}
+
+export function createGame(): GameRow {
+  const database = getDatabase();
+  const board = JSON.stringify(Array(9).fill(null));
+  const stmt = database.prepare(
+    `INSERT INTO games (board, status, current_player) VALUES (?, ?, ?)`
+  );
+  const result = stmt.run(board, 'in_progress', 'X');
+
+  const game = database
+    .prepare('SELECT * FROM games WHERE id = ?')
+    .get(result.lastInsertRowid) as GameRow;
+
+  return game;
+}
+
+export function getGame(id: number): GameRow | undefined {
+  const database = getDatabase();
+  return database.prepare('SELECT * FROM games WHERE id = ?').get(id) as
+    | GameRow
+    | undefined;
+}
+
+export function updateGame(
+  id: number,
+  board: string,
+  status: string,
+  currentPlayer: string
+): GameRow | undefined {
+  const database = getDatabase();
+  database
+    .prepare(
+      `UPDATE games SET board = ?, status = ?, current_player = ?, updated_at = datetime('now') WHERE id = ?`
+    )
+    .run(board, status, currentPlayer, id);
+
+  return getGame(id);
+}
+
+export function getAllGames(): GameRow[] {
+  const database = getDatabase();
+  return database
+    .prepare('SELECT * FROM games ORDER BY updated_at DESC')
+    .all() as GameRow[];
+}
+
+export function deleteGame(id: number): boolean {
+  const database = getDatabase();
+  const result = database.prepare('DELETE FROM games WHERE id = ?').run(id);
+  return result.changes > 0;
+}
+</file>
+
+<file path="tictactoe/src/entities/Game.ts">
+import { GameRow } from '@/lib/database';
+import { Board, GameStatus, Player, deserializeBoard } from '@/lib/gameLogic';
+
+export interface Game {
+  id: number;
+  board: Board;
+  status: GameStatus;
+  currentPlayer: Player;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export function gameRowToGame(row: GameRow): Game {
+  return {
+    id: row.id,
+    board: deserializeBoard(row.board),
+    status: row.status as GameStatus,
+    currentPlayer: row.current_player as Player,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+</file>
+
+<file path="tictactoe/src/app/api/games/route.ts">
+import { NextRequest, NextResponse } from 'next/server';
+import { createGame, getAllGames } from '@/lib/database';
+import { gameRowToGame } from '@/entities/Game';
+
+export async function GET() {
+  try {
+    const rows = getAllGames();
+    const games = rows.map(gameRowToGame);
+    return NextResponse.json(games);
+  } catch (error) {
+    console.error('GET /api/games error:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch games' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(_request: NextRequest) {
+  try {
+    const row = createGame();
+    const game = gameRowToGame(row);
+    return NextResponse.json(game, { status: 201 });
+  } catch (error) {
+    console.error('POST /api/games error:', error);
+    return NextResponse.json(
+      { error: 'Failed to create game' },
+      { status: 500 }
+    );
+  }
+}
+</file>
+
+<file path="tictactoe/src/app/api/games/[id]/route.ts">
+import { NextRequest, NextResponse } from 'next/server';
+import { getGame, updateGame, deleteGame } from '@/lib/database';
+import { gameRowToGame } from '@/entities/Game';
+import {
+  deserializeBoard,
+  makeMove,
+  serializeBoard,
+  getGameStatus,
+  getCurrentPlayer,
+} from '@/lib/gameLogic';
+
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const id = parseInt(params.id, 10);
+    if (isNaN(id)) {
+      return NextResponse.json({ error: 'Invalid game ID' }, { status: 400 });
+    }
+
+    const row = getGame(id);
+    if (!row) {
+      return NextResponse.json({ error: 'Game not found' }, { status: 404 });
+    }
+
+    return NextResponse.json(gameRowToGame(row));
+  } catch (error) {
+    console.error(`GET /api/games/${params.id} error:`, error);
+    return NextResponse.json(
+      { error: 'Failed to fetch game' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const id = parseInt(params.id, 10);
+    if (isNaN(id)) {
+      return NextResponse.json({ error: 'Invalid game ID' }, { status: 400 });
+    }
+
+    const row = getGame(id);
+    if (!row) {
+      return NextResponse.json({ error: 'Game not found' }, { status: 404 });
+    }
+
+    if (row.status !== 'in_progress') {
+      return NextResponse.json(
+        { error: 'Game is already finished' },
+        { status: 400 }
+      );
+    }
+
+    const body = await request.json();
+    const { cellIndex } = body as { cellIndex: number };
+
+    if (cellIndex

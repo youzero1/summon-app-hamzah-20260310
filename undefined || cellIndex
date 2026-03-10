@@ -1,0 +1,495 @@
+null) {
+      return NextResponse.json(
+        { error: 'Missing required field: cellIndex' },
+        { status: 400 }
+      );
+    }
+
+    if (typeof cellIndex !== 'number' || cellIndex < 0 || cellIndex > 8) {
+      return NextResponse.json(
+        { error: 'cellIndex must be a number between 0 and 8' },
+        { status: 400 }
+      );
+    }
+
+    const currentBoard = deserializeBoard(row.board);
+    const newBoard = makeMove(currentBoard, cellIndex);
+
+    if (!newBoard) {
+      return NextResponse.json(
+        { error: 'Invalid move' },
+        { status: 400 }
+      );
+    }
+
+    const newStatus = getGameStatus(newBoard);
+    const nextPlayer = getCurrentPlayer(newBoard);
+
+    const updatedRow = updateGame(
+      id,
+      serializeBoard(newBoard),
+      newStatus,
+      nextPlayer
+    );
+
+    if (!updatedRow) {
+      return NextResponse.json(
+        { error: 'Failed to update game' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json(gameRowToGame(updatedRow));
+  } catch (error) {
+    console.error(`PUT /api/games/${params.id} error:`, error);
+    return NextResponse.json(
+      { error: 'Failed to update game' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const id = parseInt(params.id, 10);
+    if (isNaN(id)) {
+      return NextResponse.json({ error: 'Invalid game ID' }, { status: 400 });
+    }
+
+    const deleted = deleteGame(id);
+    if (!deleted) {
+      return NextResponse.json({ error: 'Game not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ message: 'Game deleted' });
+  } catch (error) {
+    console.error(`DELETE /api/games/${params.id} error:`, error);
+    return NextResponse.json(
+      { error: 'Failed to delete game' },
+      { status: 500 }
+    );
+  }
+}
+</file>
+
+<file path="tictactoe/src/app/globals.css">
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg-page: #0f172a;
+  --bg-card: #1e293b;
+  --bg-cell: #334155;
+  --bg-cell-hover: #475569;
+  --bg-cell-winning: #166534;
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-x: #38bdf8;
+  --text-o: #f472b6;
+  --border-color: #475569;
+  --btn-primary: #3b82f6;
+  --btn-primary-hover: #2563eb;
+  --btn-danger: #ef4444;
+  --btn-danger-hover: #dc2626;
+  --shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+  --radius: 12px;
+  --radius-sm: 8px;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 20px;
+}
+
+.main-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 960px;
+  gap: 24px;
+}
+
+.app-title {
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  text-align: center;
+  letter-spacing: 2px;
+  margin-top: 20px;
+  text-transform: uppercase;
+}
+
+/* Game Layout */
+.game-layout {
+  display: flex;
+  flex-direction: row;
+  gap: 32px;
+  width: 100%;
+  align-items: flex-start;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* Game Card */
+.game-card {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  padding: 28px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  min-width: 320px;
+}
+
+/* Status */
+.game-status {
+  font-size: 1.2rem;
+  font-weight: 700;
+  text-align: center;
+  padding: 10px 20px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.05);
+  min-width: 240px;
+}
+
+.game-status--x-turn {
+  color: var(--text-x);
+}
+
+.game-status--o-turn {
+  color: var(--text-o);
+}
+
+.game-status--x-wins {
+  color: var(--text-x);
+  background: rgba(56, 189, 248, 0.1);
+}
+
+.game-status--o-wins {
+  color: var(--text-o);
+  background: rgba(244, 114, 182, 0.1);
+}
+
+.game-status--draw {
+  color: var(--text-secondary);
+  background: rgba(148, 163, 184, 0.1);
+}
+
+/* Board */
+.board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  width: 270px;
+  height: 270px;
+}
+
+.square {
+  background: var(--bg-cell);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 2.4rem;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+  outline: none;
+  user-select: none;
+}
+
+.square:hover:not(.square--disabled) {
+  background: var(--bg-cell-hover);
+  transform: scale(1.03);
+}
+
+.square--x {
+  color: var(--text-x);
+}
+
+.square--o {
+  color: var(--text-o);
+}
+
+.square--winning {
+  background: var(--bg-cell-winning) !important;
+}
+
+.square--disabled {
+  cursor: default;
+  opacity: 0.8;
+}
+
+/* Buttons */
+.btn {
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 10px 20px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+  outline: none;
+}
+
+.btn:active {
+  transform: scale(0.97);
+}
+
+.btn--primary {
+  background: var(--btn-primary);
+  color: white;
+}
+
+.btn--primary:hover {
+  background: var(--btn-primary-hover);
+}
+
+.btn--danger {
+  background: var(--btn-danger);
+  color: white;
+}
+
+.btn--danger:hover {
+  background: var(--btn-danger-hover);
+}
+
+.btn--secondary {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+
+.btn--secondary:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.game-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* History Panel */
+.history-panel {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  padding: 24px;
+  box-shadow: var(--shadow);
+  min-width: 280px;
+  max-width: 320px;
+  max-height: 500px;
+  display: flex;
+  flex-direction: column;
+}
+
+.history-panel__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-shrink: 0;
+}
+
+.history-panel__title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.history-panel__list {
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 4px;
+}
+
+.history-panel__list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.history-panel__list::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 2px;
+}
+
+.history-panel__list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+}
+
+.history-panel__empty {
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  padding: 40px 0;
+}
+
+.history-item {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.history-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.history-item--active {
+  background: rgba(59, 130, 246, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.history-item__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.history-item__label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.history-item__status {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.history-item__status--x-wins {
+  color: var(--text-x);
+}
+
+.history-item__status--o-wins {
+  color: var(--text-o);
+}
+
+.history-item__status--draw {
+  color: var(--text-secondary);
+}
+
+.history-item__status--in-progress {
+  color: #4ade80;
+}
+
+.history-item__time {
+  font-size: 0.7rem;
+  color: rgba(148, 163, 184, 0.6);
+}
+
+.history-panel__loading {
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  padding: 20px 0;
+}
+
+/* Responsive */
+@media (max-width: 700px) {
+  .game-layout {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .history-panel {
+    max-width: 320px;
+    max-height: 300px;
+  }
+
+  .app-title {
+    font-size: 1.6rem;
+  }
+
+  .board {
+    width: 240px;
+    height: 240px;
+  }
+
+  .square {
+    font-size: 2rem;
+  }
+}
+</file>
+
+<file path="tictactoe/src/app/layout.tsx">
+import type { Metadata } from 'next';
+import './globals.css';
+
+export const metadata: Metadata = {
+  title: 'Tic Tac Toe',
+  description: 'A fullstack Tic Tac Toe game built with Next.js, TypeScript, and SQLite',
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en">
+      <body>{children}</body>
+    </html>
+  );
+}
+</file>
+
+<file path="tictactoe/src/app/page.tsx">
+import dynamic from 'next/dynamic';
+
+const GameBoard = dynamic(() => import('@/components/Board'), { ssr: false });
+
+export default function Home() {
+  return (
+    <main className="main-container">
+      <h1 className="app-title">Tic Tac Toe</h1>
+      <GameBoard />
+    </main>
+  );
+}
+</file>
+
+<file path="tictactoe/src/components/Square.tsx">
+'use client';
+
+import React from 'react';
+import { CellValue } from '@/lib/gameLogic';
+
+interface SquareProps {
+  value: CellValue;
+  onClick: () => void;
+  isWinning: boolean;
+  disabled: boolean;
+}
+
+const Square: React.FC<SquareProps> = ({ value, onClick, isWinning, disabled }) => {
+  const classNames = [
+    'square',
+    value

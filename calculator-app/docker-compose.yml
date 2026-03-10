@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  calculator-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - '3000:3000'
+    environment:
+      - NODE_ENV=production
+      - DATABASE_PATH=./database.sqlite
+    volumes:
+      - calculator-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  calculator-data:

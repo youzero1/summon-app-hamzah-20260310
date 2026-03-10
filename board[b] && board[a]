@@ -1,11 +1,48 @@
 board[c]) {
-      return board[a] as Player;
+      return combo;
     }
   }
   return null;
 }
 
-export function getWinningLine(board: Board): number[] | null {
-  for (const combo of WINNING_COMBINATIONS) {
-    const [a, b, c] = combo;
-    if (board[a] && board[a]
+export function isBoardFull(board: Board): boolean {
+  return board.every((cell) => cell !== null);
+}
+
+export function getGameStatus(board: Board): GameStatus {
+  const winner = checkWinner(board);
+  if (winner === 'X') return 'x_wins';
+  if (winner === 'O') return 'o_wins';
+  if (isBoardFull(board)) return 'draw';
+  return 'in_progress';
+}
+
+export function getCurrentPlayer(board: Board): Player {
+  const xCount = board.filter((c) => c === 'X').length;
+  const oCount = board.filter((c) => c === 'O').length;
+  return xCount <= oCount ? 'X' : 'O';
+}
+
+export function makeMove(board: Board, index: number): Board | null {
+  if (index < 0 || index > 8) return null;
+  if (board[index] !== null) return null;
+  if (checkWinner(board)) return null;
+  if (isBoardFull(board)) return null;
+
+  const newBoard = [...board];
+  newBoard[index] = getCurrentPlayer(board);
+  return newBoard;
+}
+
+export function serializeBoard(board: Board): string {
+  return JSON.stringify(board);
+}
+
+export function deserializeBoard(data: string): Board {
+  try {
+    const parsed = JSON.parse(data);
+    if (!Array.isArray(parsed) || parsed.length !== 9) {
+      return createEmptyBoard();
+    }
+    return parsed.map((cell: unknown) => {
+      if (cell

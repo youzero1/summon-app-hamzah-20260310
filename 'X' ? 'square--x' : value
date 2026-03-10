@@ -1,0 +1,91 @@
+'O' ? 'square--o' : '',
+    isWinning ? 'square--winning' : '',
+    disabled || value !== null ? 'square--disabled' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  return (
+    <button
+      className={classNames}
+      onClick={onClick}
+      disabled={disabled && value === null}
+      aria-label={value ? `Cell: ${value}` : 'Empty cell'}
+    >
+      {value}
+    </button>
+  );
+};
+
+export default Square;
+</file>
+
+<file path="tictactoe/src/components/GameStatus.tsx">
+'use client';
+
+import React from 'react';
+import { GameStatus as GameStatusType, Player } from '@/lib/gameLogic';
+
+interface GameStatusProps {
+  status: GameStatusType;
+  currentPlayer: Player;
+}
+
+const GameStatus: React.FC<GameStatusProps> = ({ status, currentPlayer }) => {
+  let message: string;
+  let className = 'game-status';
+
+  switch (status) {
+    case 'x_wins':
+      message = '🎉 X Wins!';
+      className += ' game-status--x-wins';
+      break;
+    case 'o_wins':
+      message = '🎉 O Wins!';
+      className += ' game-status--o-wins';
+      break;
+    case 'draw':
+      message = "🤝 It's a Draw!";
+      className += ' game-status--draw';
+      break;
+    case 'in_progress':
+    default:
+      message = `${currentPlayer}'s Turn`;
+      className += currentPlayer === 'X' ? ' game-status--x-turn' : ' game-status--o-turn';
+      break;
+  }
+
+  return <div className={className}>{message}</div>;
+};
+
+export default GameStatus;
+</file>
+
+<file path="tictactoe/src/components/GameHistory.tsx">
+'use client';
+
+import React from 'react';
+
+interface GameSummary {
+  id: number;
+  status: string;
+  currentPlayer: string;
+  updatedAt: string;
+}
+
+interface GameHistoryProps {
+  games: GameSummary[];
+  activeGameId: number | null;
+  onSelectGame: (id: number) => void;
+  loading: boolean;
+}
+
+const GameHistory: React.FC<GameHistoryProps> = ({
+  games,
+  activeGameId,
+  onSelectGame,
+  loading,
+}) => {
+  const getStatusLabel = (status: string): string => {
+    switch (status) {
+      case 'x_wins':
